@@ -14,7 +14,7 @@
   <!-- Firebase CDN for database and authentication -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, collection, query, orderBy, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     window.initializeApp = initializeApp;
@@ -22,7 +22,8 @@
     window.signInAnonymously = signInAnonymously;
     window.onAuthStateChanged = onAuthStateChanged;
     window.GoogleAuthProvider = GoogleAuthProvider;
-    window.signInWithPopup = signInWithPopup;
+    window.signInWithRedirect = signInWithRedirect;
+    window.getRedirectResult = getRedirectResult;
     window.signOut = signOut;
     window.getFirestore = getFirestore;
     window.doc = doc;
@@ -75,8 +76,25 @@
         setDb(firestore);
         
         console.log("Setting up authentication state listener...");
-        
+
+        // A variable to store the unsubscribe function for the Firestore listener
         let unsubscribeSnapshot = () => {};
+        
+        // This is a new part of the code to handle the redirect result
+        const handleRedirectResult = async () => {
+          try {
+            // Get the user credentials from the redirect
+            const result = await window.getRedirectResult(auth);
+            if (result) {
+              console.log("Redirect sign-in successful:", result.user.uid);
+            }
+          } catch (error) {
+            console.error("Error during redirect sign-in:", error);
+            setMessage("Failed to sign in. Check the console.");
+          }
+        };
+
+        handleRedirectResult();
 
         // Listen for authentication state changes
         const unsubscribeAuth = window.onAuthStateChanged(auth, (authUser) => {
@@ -123,7 +141,8 @@
         const auth = window.getAuth();
         const provider = new window.GoogleAuthProvider();
         try {
-          await window.signInWithPopup(auth, provider);
+          // This will redirect the user to Google's sign-in page
+          await window.signInWithRedirect(auth, provider);
         } catch (error) {
           console.error("Error signing in with Google:", error);
           setMessage("Failed to sign in. Check the console.");
@@ -292,4 +311,210 @@
                 className="text-sm font-medium text-red-500 hover:text-red-700 transition-colors duration-200"
               >
                 Sign Out
-              </butt
+              </button>
+            </div>
+            
+            {user && (
+              <p className="text-center text-sm text-gray-500 break-words">
+                Signed in as: <span className="font-medium text-gray-700">{user.email || user.uid}</span>
+              </p>
+            )}
+
+            {/* Exchange Rate Section */}
+            <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+              <label htmlFor="usdtRate" className="text-gray-600 font-medium">
+                USDT to EGP Exchange Rate
+              </label>
+              <input
+                type="number"
+                id="usdtRate"
+                value={usdtEgpRate.toFixed(2)}
+                onChange={(e) => setUsdtEgpRate(parseFloat(e.target.value))}
+                className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+                step="0.01"
+              />
+            </div>
+
+            {/* Transaction Form */}
+            <form onSubmit={addTransaction} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Transaction Type */}
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-2">Transaction Type</label>
+                  <div className="flex rounded-lg overflow-hidden border border-gray-300">
+                    <button
+                      type="button"
+                      onClick={() => setType('buy')}
+                      className={`w-1/2 py-2 text-center font-medium transition duration-200 ${
+                        type === 'buy' ? 'bg-green-500 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      Buy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setType('sell')}
+                      className={`w-1/2 py-2 text-center font-medium transition duration-200 ${
+                        type === 'sell' ? 'bg-red-500 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      Sell
+                    </button>
+                  </div>
+                </div>
+
+                {/* Crypto Amount */}
+                <div>
+                  <label htmlFor="cryptoAmount" className="block text-gray-700 font-semibold mb-2">
+                    Crypto Amount (USDT)
+                  </label>
+                  <input
+                    type="number"
+                    id="cryptoAmount"
+                    value={cryptoAmount}
+                    onChange={(e) => setCryptoAmount(e.target.value)}
+                    placeholder="e.g., 100"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+                    step="0.001"
+                  />
+                </div>
+                
+                {/* Fiat Amount */}
+                <div>
+                  <label htmlFor="fiatAmount" className="block text-gray-700 font-semibold mb-2">
+                    Fiat Amount (EGP)
+                  </label>
+                  <input
+                    type="number"
+                    id="fiatAmount"
+                    value={fiatAmount}
+                    onChange={(e) => setFiatAmount(e.target.value)}
+                    placeholder="e.g., 5000"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+                    step="0.01"
+                  />
+                </div>
+                
+                {/* Date Input */}
+                <div>
+                  <label htmlFor="date" className="block text-gray-700 font-semibold mb-2">
+                    Transaction Date
+                  </label>
+                  <input
+                    type="date"
+                    id="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+                  />
+                </div>
+              </div>
+
+              {/* Validation Message */}
+              {message && (
+                <div className="text-sm font-medium text-red-500 text-center">{message}</div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:bg-blue-700 transform hover:scale-105 transition duration-300 ease-in-out"
+              >
+                Add Transaction
+              </button>
+            </form>
+
+            {/* Summary and Table */}
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+                {/* Total Profit/Loss */}
+                <div className={`p-4 rounded-xl shadow-inner ${totalProfit >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <h3 className="font-semibold text-sm sm:text-base">Total Profit/Loss</h3>
+                  <p className="font-bold text-xl sm:text-2xl mt-1">{totalProfit.toFixed(2)} EGP</p>
+                </div>
+
+                {/* Net Crypto Held */}
+                <div className="p-4 rounded-xl shadow-inner bg-gray-100 text-gray-700">
+                  <h3 className="font-semibold text-sm sm:text-base">Net Crypto Held</h3>
+                  <p className="font-bold text-xl sm:text-2xl mt-1">{netCrypto.toFixed(3)} USDT</p>
+                </div>
+                
+                {/* Total Binance Fees */}
+                <div className="p-4 rounded-xl shadow-inner bg-gray-100 text-gray-700">
+                  <h3 className="font-semibold text-sm sm:text-base">Total Binance Fees</h3>
+                  <p className="font-bold text-xl sm:text-2xl mt-1">{totalBinanceFee.toFixed(2)} EGP</p>
+                </div>
+                
+                {/* Total Bank Fees */}
+                <div className="p-4 rounded-xl shadow-inner bg-gray-100 text-gray-700">
+                  <h3 className="font-semibold text-sm sm:text-base">Total Bank Fees</h3>
+                  <p className="font-bold text-xl sm:text-2xl mt-1">{totalBankFee.toFixed(2)} EGP</p>
+                </div>
+              </div>
+              
+              {/* Transactions Table */}
+              <div className="overflow-x-auto rounded-lg shadow-md">
+                <table className="min-w-full bg-white">
+                  <thead className="bg-gray-200">
+                    <tr>
+                      <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase">Date</th>
+                      <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase">Type</th>
+                      <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase">Crypto (USDT)</th>
+                      <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase">Fiat (EGP)</th>
+                      <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase">Total Fees (EGP)</th>
+                      <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.length > 0 ? (
+                      transactions.map((tx) => (
+                        <tr key={tx.id} className="border-t border-gray-200 hover:bg-gray-50 transition-colors duration-150">
+                          <td className="py-3 px-4 text-sm text-gray-800">{tx.date}</td>
+                          <td className={`py-3 px-4 text-sm font-medium ${tx.type === 'buy' ? 'text-green-600' : 'text-red-600'}`}>
+                            {tx.type.charAt(0).toUpperCase() + tx.type.slice(1)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-800">{tx.cryptoAmount.toFixed(3)}</td>
+                          <td className="py-3 px-4 text-sm text-gray-800">{tx.fiatAmount.toFixed(2)}</td>
+                          <td className="py-3 px-4 text-sm text-gray-800">
+                            {(tx.binanceFee + tx.bankFee).toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-800">
+                            <button
+                              onClick={() => deleteTransaction(tx.id)}
+                              className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold hover:bg-red-600 transition-colors duration-200"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="6" className="py-6 text-center text-gray-500 italic">
+                          No transactions added yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="text-center">
+                <button
+                  onClick={downloadCsv}
+                  className="bg-purple-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:bg-purple-700 transform hover:scale-105 transition duration-300 ease-in-out"
+                >
+                  Download as CSV
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+    
+    // Render the React component into the 'root' div
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+
+</body>
+</html>
