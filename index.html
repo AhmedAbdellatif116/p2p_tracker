@@ -53,7 +53,7 @@
       const [usdtEgpRate, setUsdtEgpRate] = useState(48.65678927);
       const [message, setMessage] = useState('');
       const [db, setDb] = useState(null);
-      const [authReady, setAuthReady] = useState(false);
+      const [isAuthReady, setIsAuthReady] = useState(false);
       const [isSubmitting, setIsSubmitting] = useState(false); // New state to track submission
 
       // Initialize Firebase and set up the Firestore listener
@@ -66,38 +66,9 @@
         const app = window.initializeApp(firebaseConfig);
         const auth = window.getAuth(app);
         const firestore = window.getFirestore(app);
-        setDb(firestore);
         
-        // Set up auth state listener to handle authentication
-        const unsubscribeAuth = window.onAuthStateChanged(auth, async (user) => {
-          if (user) {
-            setAuthReady(true);
-            
-            // Set up a real-time listener for transactions once authenticated
-            const transactionsCollectionRef = window.collection(firestore, `artifacts/${appId}/public/data/transactions`);
-            const q = window.query(transactionsCollectionRef);
-            
-            const unsubscribeFirestore = window.onSnapshot(q, (querySnapshot) => {
-              console.log("Fetching new transactions...");
-              const fetchedTransactions = [];
-              querySnapshot.forEach((doc) => {
-                fetchedTransactions.push({ id: doc.id, ...doc.data() });
-              });
-              setTransactions(fetchedTransactions);
-            }, (error) => {
-              console.error("Error fetching data:", error);
-              setMessage("Failed to load transactions.");
-            });
-            
-            // Cleanup function for the Firestore listener
-            return unsubscribeFirestore;
-          } else {
-            setAuthReady(true);
-          }
-        });
-        
-        // Sign in anonymously if no custom token is provided
-        const signIn = async () => {
+        // Asynchronously sign in with the provided custom token or anonymously
+        const authenticateUser = async () => {
           try {
             if (initialAuthToken) {
               await window.signInWithCustomToken(auth, initialAuthToken);
@@ -107,13 +78,41 @@
           } catch (error) {
             console.error("Firebase Auth Error:", error);
             setMessage("Failed to authenticate with Firebase.");
+            // Even if auth fails, the app should still proceed, just without a valid user.
+            setIsAuthReady(true);
           }
         };
 
-        signIn();
+        // Call the authentication function
+        authenticateUser();
+
+        // Set up the listener for transactions once Firebase is initialized and auth is ready
+        const transactionsCollectionRef = window.collection(firestore, `artifacts/${appId}/public/data/transactions`);
+        const q = window.query(transactionsCollectionRef);
         
-        // Cleanup function for the auth listener
-        return () => unsubscribeAuth();
+        const unsubscribeFirestore = window.onSnapshot(q, (querySnapshot) => {
+          console.log("Fetching new transactions...");
+          const fetchedTransactions = [];
+          querySnapshot.forEach((doc) => {
+            fetchedTransactions.push({ id: doc.id, ...doc.data() });
+          });
+          setTransactions(fetchedTransactions);
+          // Set authentication ready after the first data fetch
+          setIsAuthReady(true); 
+          setMessage(''); // Clear any pending messages once ready
+        }, (error) => {
+          console.error("Error fetching data:", error);
+          setMessage("Failed to load transactions.");
+          setIsAuthReady(true);
+        });
+
+        // Set the db state here so it's available for other functions
+        setDb(firestore);
+
+        // Cleanup function for listeners
+        return () => {
+          unsubscribeFirestore();
+        };
       }, []);
 
       // Function to handle changes in fiat amount and calculate crypto
@@ -141,8 +140,9 @@
       const addTransaction = async (e) => {
         e.preventDefault();
 
-        if (!authReady) {
-          setMessage('Authentication not ready. Please wait.');
+        // Check if DB and authentication are ready before proceeding
+        if (!db || !isAuthReady) {
+          setMessage('Application is initializing. Please wait...');
           return;
         }
         
@@ -193,8 +193,8 @@
       };
 
       const deleteTransaction = async (id) => {
-        if (!authReady) {
-          setMessage('Authentication not ready. Please wait.');
+        if (!db || !isAuthReady) {
+          setMessage('Application is initializing. Please wait...');
           return;
         }
         
@@ -376,9 +376,9 @@
 
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !isAuthReady}
                 className={`w-full font-bold py-3 px-6 rounded-xl shadow-lg transform transition duration-300 ease-in-out ${
-                  isSubmitting ? 'bg-gray-400 text-gray-600' : 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105'
+                  isSubmitting || !isAuthReady ? 'bg-gray-400 text-gray-600 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105'
                 }`}
               >
                 {isSubmitting ? 'Adding...' : 'Add Transaction'}
