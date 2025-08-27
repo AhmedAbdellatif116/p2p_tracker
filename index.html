@@ -11,9 +11,10 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <!-- Babel for transpiling JSX -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- Firebase CDN for database -->
+  <!-- Firebase CDN for database and auth -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, deleteDoc, onSnapshot, collection, query, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     window.initializeApp = initializeApp;
@@ -24,6 +25,10 @@
     window.collection = collection;
     window.query = query;
     window.addDoc = addDoc;
+    window.getAuth = getAuth;
+    window.signInAnonymously = signInAnonymously;
+    window.signInWithCustomToken = signInWithCustomToken;
+    window.onAuthStateChanged = onAuthStateChanged;
   </script>
 </head>
 <body>
@@ -36,9 +41,7 @@
     // Global variables provided by the Canvas environment for Firebase setup
     const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    
-    // Generate a unique ID for this user session without authentication
-    const userId = crypto.randomUUID();
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
     const App = () => {
       // States for application data and Firebase
@@ -50,6 +53,8 @@
       const [usdtEgpRate, setUsdtEgpRate] = useState(48.65678927);
       const [message, setMessage] = useState('');
       const [db, setDb] = useState(null);
+      const [userId, setUserId] = useState(null);
+      const [authReady, setAuthReady] = useState(false);
 
       // Initialize Firebase and set up the Firestore listener
       useEffect(() => {
@@ -59,27 +64,58 @@
         }
         
         const app = window.initializeApp(firebaseConfig);
+        const auth = window.getAuth(app);
         const firestore = window.getFirestore(app);
         setDb(firestore);
         
-        // Set up a real-time listener for transactions
-        const transactionsCollectionRef = window.collection(firestore, `artifacts/${appId}/users/${userId}/transactions`);
-        const q = window.query(transactionsCollectionRef);
-
-        const unsubscribe = window.onSnapshot(q, (querySnapshot) => {
-          console.log("Fetching new transactions...");
-          const fetchedTransactions = [];
-          querySnapshot.forEach((doc) => {
-            fetchedTransactions.push({ id: doc.id, ...doc.data() });
-          });
-          setTransactions(fetchedTransactions);
-        }, (error) => {
-          console.error("Error fetching data:", error);
-          setMessage("Failed to load transactions.");
+        // Set up auth state listener to handle authentication
+        const unsubscribeAuth = window.onAuthStateChanged(auth, async (user) => {
+          if (user) {
+            setUserId(user.uid);
+            setAuthReady(true);
+            
+            // Set up a real-time listener for transactions once authenticated
+            const transactionsCollectionRef = window.collection(firestore, `artifacts/${appId}/users/${user.uid}/transactions`);
+            const q = window.query(transactionsCollectionRef);
+            
+            const unsubscribeFirestore = window.onSnapshot(q, (querySnapshot) => {
+              console.log("Fetching new transactions...");
+              const fetchedTransactions = [];
+              querySnapshot.forEach((doc) => {
+                fetchedTransactions.push({ id: doc.id, ...doc.data() });
+              });
+              setTransactions(fetchedTransactions);
+            }, (error) => {
+              console.error("Error fetching data:", error);
+              setMessage("Failed to load transactions.");
+            });
+            
+            // Cleanup function for the Firestore listener
+            return unsubscribeFirestore;
+          } else {
+            setUserId(null);
+            setAuthReady(true);
+          }
         });
+        
+        // Sign in anonymously if no custom token is provided
+        const signIn = async () => {
+          try {
+            if (initialAuthToken) {
+              await window.signInWithCustomToken(auth, initialAuthToken);
+            } else {
+              await window.signInAnonymously(auth);
+            }
+          } catch (error) {
+            console.error("Firebase Auth Error:", error);
+            setMessage("Failed to authenticate with Firebase.");
+          }
+        };
 
-        // Cleanup function for the listener
-        return () => unsubscribe();
+        signIn();
+        
+        // Cleanup function for the auth listener
+        return () => unsubscribeAuth();
       }, []);
 
       // Function to handle changes in fiat amount and calculate crypto
@@ -106,6 +142,11 @@
 
       const addTransaction = async (e) => {
         e.preventDefault();
+
+        if (!authReady || !userId) {
+          setMessage('Authentication not ready. Please wait.');
+          return;
+        }
 
         if (!cryptoAmount || !fiatAmount || !date) {
           setMessage('Please fill in all fields.');
@@ -143,6 +184,11 @@
       };
 
       const deleteTransaction = async (id) => {
+        if (!authReady || !userId) {
+          setMessage('Authentication not ready. Please wait.');
+          return;
+        }
+        
         try {
           await window.deleteDoc(window.doc(db, `artifacts/${appId}/users/${userId}/transactions/${id}`));
         } catch (error) {
@@ -221,7 +267,7 @@
             </div>
             
             <p className="text-center text-sm text-gray-500 break-words">
-              Your unique ID (for saving data): <span className="font-medium text-gray-700">{userId}</span>
+              Your unique ID (for saving data): <span className="font-medium text-gray-700">{userId || 'Authenticating...'}</span>
             </p>
 
             {/* Exchange Rate Section */}
