@@ -179,7 +179,10 @@
           setMessage("Transaction added successfully!");
         } catch (error) {
           console.error("Error adding document:", error);
-          setMessage(`Failed to add transaction. Error: ${error.message}`);
+          // Log a more detailed error message to the console
+          console.error("Firebase Error Code:", error.code);
+          console.error("Firebase Error Message:", error.message);
+          setMessage(`Failed to add transaction. Please check the console for details.`);
         } finally {
           setIsSubmitting(false);
         }
