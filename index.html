@@ -53,7 +53,6 @@
       const [usdtEgpRate, setUsdtEgpRate] = useState(48.65678927);
       const [message, setMessage] = useState('');
       const [db, setDb] = useState(null);
-      const [userId, setUserId] = useState(null);
       const [authReady, setAuthReady] = useState(false);
 
       // Initialize Firebase and set up the Firestore listener
@@ -71,11 +70,10 @@
         // Set up auth state listener to handle authentication
         const unsubscribeAuth = window.onAuthStateChanged(auth, async (user) => {
           if (user) {
-            setUserId(user.uid);
             setAuthReady(true);
             
             // Set up a real-time listener for transactions once authenticated
-            const transactionsCollectionRef = window.collection(firestore, `artifacts/${appId}/users/${user.uid}/transactions`);
+            const transactionsCollectionRef = window.collection(firestore, `artifacts/${appId}/public/data/transactions`);
             const q = window.query(transactionsCollectionRef);
             
             const unsubscribeFirestore = window.onSnapshot(q, (querySnapshot) => {
@@ -93,7 +91,6 @@
             // Cleanup function for the Firestore listener
             return unsubscribeFirestore;
           } else {
-            setUserId(null);
             setAuthReady(true);
           }
         });
@@ -143,7 +140,7 @@
       const addTransaction = async (e) => {
         e.preventDefault();
 
-        if (!authReady || !userId) {
+        if (!authReady) {
           setMessage('Authentication not ready. Please wait.');
           return;
         }
@@ -171,7 +168,7 @@
         };
 
         try {
-          const transactionsCollectionRef = window.collection(db, `artifacts/${appId}/users/${userId}/transactions`);
+          const transactionsCollectionRef = window.collection(db, `artifacts/${appId}/public/data/transactions`);
           await window.addDoc(transactionsCollectionRef, newTransaction);
         } catch (error) {
           console.error("Error adding document:", error);
@@ -184,13 +181,13 @@
       };
 
       const deleteTransaction = async (id) => {
-        if (!authReady || !userId) {
+        if (!authReady) {
           setMessage('Authentication not ready. Please wait.');
           return;
         }
         
         try {
-          await window.deleteDoc(window.doc(db, `artifacts/${appId}/users/${userId}/transactions/${id}`));
+          await window.deleteDoc(window.doc(db, `artifacts/${appId}/public/data/transactions/${id}`));
         } catch (error) {
           console.error("Error deleting document:", error);
           setMessage("Failed to delete transaction. Check the console.");
@@ -267,7 +264,7 @@
             </div>
             
             <p className="text-center text-sm text-gray-500 break-words">
-              Your unique ID (for saving data): <span className="font-medium text-gray-700">{userId || 'Authenticating...'}</span>
+              Your unique ID is no longer displayed for privacy. Data is now saved to a public collection.
             </p>
 
             {/* Exchange Rate Section */}
