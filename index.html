@@ -1,641 +1,295 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>P2P Transaction Tracker</title>
-    <!-- Tailwind CSS CDN for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React and ReactDOM for building the UI -->
-    <script
-      src="https://unpkg.com/react@18/umd/react.production.min.js"
-      crossorigin
-    ></script>
-    <script
-      src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"
-      crossorigin
-    ></script>
-    <!-- Babel for transpiling JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Firebase CDN for database and authentication -->
-    <script type="module">
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-      import {
-        getAuth,
-        signInAnonymously,
-        onAuthStateChanged,
-        GoogleAuthProvider,
-        signInWithPopup,
-        signOut,
-      } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-      import {
-        getFirestore,
-        doc,
-        getDoc,
-        setDoc,
-        deleteDoc,
-        onSnapshot,
-        collection,
-        query,
-        orderBy,
-        addDoc,
-        getDocs,
-      } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P2P Transaction Tracker</title>
+  <!-- Tailwind CSS CDN for styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React and ReactDOM for building the UI -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel for transpiling JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Firebase CDN for database and authentication -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, collection, query, orderBy, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-      window.initializeApp = initializeApp;
-      window.getAuth = getAuth;
-      window.signInAnonymously = signInAnonymously;
-      window.onAuthStateChanged = onAuthStateChanged;
-      window.GoogleAuthProvider = GoogleAuthProvider;
-      window.signInWithPopup = signInWithPopup;
-      window.signOut = signOut;
-      window.getFirestore = getFirestore;
-      window.doc = doc;
-      window.getDoc = getDoc;
-      window.setDoc = setDoc;
-      window.deleteDoc = deleteDoc;
-      window.onSnapshot = onSnapshot;
-      window.collection = collection;
-      window.query = query;
-      window.orderBy = orderBy;
-      window.addDoc = addDoc;
-      window.getDocs = getDocs;
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
+    window.initializeApp = initializeApp;
+    window.getAuth = getAuth;
+    window.signInAnonymously = signInAnonymously;
+    window.onAuthStateChanged = onAuthStateChanged;
+    window.GoogleAuthProvider = GoogleAuthProvider;
+    window.signInWithPopup = signInWithPopup;
+    window.signOut = signOut;
+    window.getFirestore = getFirestore;
+    window.doc = doc;
+    window.getDoc = getDoc;
+    window.setDoc = setDoc;
+    window.deleteDoc = deleteDoc;
+    window.onSnapshot = onSnapshot;
+    window.collection = collection;
+    window.query = query;
+    window.orderBy = orderBy;
+    window.addDoc = addDoc;
+    window.getDocs = getDocs;
+  </script>
+</head>
+<body>
 
-    <script type="text/babel">
-      const { useState, useMemo, useEffect } = React;
+  <div id="root"></div>
 
-      // Global variables provided by the Canvas environment for Firebase setup
-      const firebaseConfig = JSON.parse(
-        typeof __firebase_config !== "undefined" ? __firebase_config : "{}"
-      );
-      const appId =
-        typeof __app_id !== "undefined" ? __app_id : "default-app-id";
+  <script type="text/babel">
+    const { useState, useMemo, useEffect } = React;
+    
+    // Global variables provided by the Canvas environment for Firebase setup
+    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-      const App = () => {
-        // States for application data and Firebase
-        const [transactions, setTransactions] = useState([]);
-        const [type, setType] = useState("buy");
-        const [cryptoAmount, setCryptoAmount] = useState("");
-        const [fiatAmount, setFiatAmount] = useState("");
-        const [date, setDate] = useState("");
-        const [usdtEgpRate, setUsdtEgpRate] = useState(48.65678927);
-        const [message, setMessage] = useState("");
-        const [user, setUser] = useState(null);
-        const [db, setDb] = useState(null);
-        const [isLoading, setIsLoading] = useState(true);
+    const App = () => {
+      // States for application data and Firebase
+      const [transactions, setTransactions] = useState([]);
+      const [type, setType] = useState('buy');
+      const [cryptoAmount, setCryptoAmount] = useState('');
+      const [fiatAmount, setFiatAmount] = useState('');
+      const [date, setDate] = useState('');
+      const [usdtEgpRate, setUsdtEgpRate] = useState(48.65678927);
+      const [message, setMessage] = useState('');
+      const [user, setUser] = useState(null);
+      const [db, setDb] = useState(null);
+      const [isLoading, setIsLoading] = useState(true);
 
-        // Initialize Firebase and set up user authentication
-        useEffect(() => {
-          if (Object.keys(firebaseConfig).length === 0) {
-            setMessage(
-              "Firebase config not available. Data will not be saved."
-            );
+      // Initialize Firebase and set up user authentication
+      useEffect(() => {
+        if (Object.keys(firebaseConfig).length === 0) {
+          setMessage("Firebase config not available. Data will not be saved.");
+          setIsLoading(false);
+          return;
+        }
+        
+        const app = window.initializeApp(firebaseConfig);
+        const auth = window.getAuth(app);
+        const firestore = window.getFirestore(app);
+        setDb(firestore);
+        
+        console.log("Setting up authentication state listener...");
+        
+        let unsubscribeSnapshot = () => {};
+
+        // Listen for authentication state changes
+        const unsubscribeAuth = window.onAuthStateChanged(auth, (authUser) => {
+          if (authUser) {
+            console.log("User signed in:", authUser.uid);
+            setUser(authUser);
             setIsLoading(false);
-            return;
-          }
 
-          const app = window.initializeApp(firebaseConfig);
-          const auth = window.getAuth(app);
-          const firestore = window.getFirestore(app);
-          setDb(firestore);
+            // Set up a real-time listener for transactions
+            const transactionsCollectionRef = window.collection(firestore, `artifacts/${appId}/users/${authUser.uid}/transactions`);
+            const q = window.query(transactionsCollectionRef);
 
-          // Listen for authentication state changes
-          const unsubscribeAuth = window.onAuthStateChanged(
-            auth,
-            (authUser) => {
-              if (authUser) {
-                setUser(authUser);
-                setIsLoading(false);
-
-                // Set up a real-time listener for transactions
-                const transactionsCollectionRef = window.collection(
-                  firestore,
-                  `artifacts/${appId}/users/${authUser.uid}/transactions`
-                );
-                const q = window.query(transactionsCollectionRef);
-
-                const unsubscribeSnapshot = window.onSnapshot(
-                  q,
-                  (querySnapshot) => {
-                    const fetchedTransactions = [];
-                    querySnapshot.forEach((doc) => {
-                      fetchedTransactions.push({ id: doc.id, ...doc.data() });
-                    });
-                    setTransactions(fetchedTransactions);
-                  },
-                  (error) => {
-                    console.error("Error fetching data:", error);
-                    setMessage("Failed to load transactions.");
-                  }
-                );
-                // Return the unsubscribe function for cleanup
-                return unsubscribeSnapshot;
-              } else {
-                setUser(null);
-                setIsLoading(false);
-              }
-            }
-          );
-
-          // Cleanup function for the auth listener
-          return () => unsubscribeAuth();
-        }, []);
-
-        const signInWithGoogle = async () => {
-          const auth = window.getAuth();
-          const provider = new window.GoogleAuthProvider();
-          try {
-            await window.signInWithPopup(auth, provider);
-          } catch (error) {
-            console.error("Error signing in with Google:", error);
-            setMessage("Failed to sign in. Check the console.");
-          }
-        };
-
-        const handleSignOut = async () => {
-          const auth = window.getAuth();
-          try {
-            await window.signOut(auth);
-            setTransactions([]);
-          } catch (error) {
-            console.error("Error signing out:", error);
-            setMessage("Failed to sign out. Check the console.");
-          }
-        };
-
-        const addTransaction = async (e) => {
-          e.preventDefault();
-
-          if (!cryptoAmount || !fiatAmount || !date) {
-            setMessage("Please fill in all fields.");
-            return;
-          }
-
-          setMessage("");
-
-          const fiatValue = parseFloat(fiatAmount);
-          const cryptoValue = parseFloat(cryptoAmount);
-          const binanceFee = 0.05 * usdtEgpRate; // assuming a fixed 0.05% fee
-          const bankFee = Math.max(0.5, fiatValue * 0.001);
-
-          const newTransaction = {
-            date: new Date(date).toLocaleDateString(),
-            type: type,
-            cryptoAmount: cryptoValue,
-            fiatAmount: fiatValue,
-            binanceFee: binanceFee,
-            bankFee: bankFee,
-            createdAt: new Date(), // Add a timestamp
-          };
-
-          try {
-            const transactionsCollectionRef = window.collection(
-              db,
-              `artifacts/${appId}/users/${user.uid}/transactions`
-            );
-            await window.addDoc(transactionsCollectionRef, newTransaction);
-          } catch (error) {
-            console.error("Error adding document:", error);
-            setMessage("Failed to add transaction. Check the console.");
-          }
-
-          setCryptoAmount("");
-          setFiatAmount("");
-          setDate("");
-        };
-
-        const deleteTransaction = async (id) => {
-          try {
-            await window.deleteDoc(
-              window.doc(
-                db,
-                `artifacts/${appId}/users/${user.uid}/transactions/${id}`
-              )
-            );
-          } catch (error) {
-            console.error("Error deleting document:", error);
-            setMessage("Failed to delete transaction. Check the console.");
-          }
-        };
-
-        const downloadCsv = () => {
-          if (transactions.length === 0) {
-            setMessage("No transactions to download.");
-            return;
-          }
-
-          const headers = [
-            "Date",
-            "Type",
-            "Crypto Amount (USDT)",
-            "Fiat Amount (EGP)",
-            "Binance Fee (EGP)",
-            "Bank Fee (EGP)",
-            "Total Fees (EGP)",
-          ];
-
-          const csvRows = transactions.map((tx) => {
-            const totalFees = (tx.binanceFee + tx.bankFee).toFixed(2);
-            return [
-              tx.date,
-              tx.type.charAt(0).toUpperCase() + tx.type.slice(1),
-              tx.cryptoAmount.toFixed(3),
-              tx.fiatAmount.toFixed(2),
-              tx.binanceFee.toFixed(2),
-              tx.bankFee.toFixed(2),
-              totalFees,
-            ].join(",");
-          });
-
-          const csvContent = [headers.join(","), ...csvRows].join("\n");
-
-          const blob = new Blob([csvContent], {
-            type: "text/csv;charset=utf-8;",
-          });
-          const link = document.createElement("a");
-          const url = URL.createObjectURL(blob);
-          link.setAttribute("href", url);
-          link.setAttribute("download", "p2p_transactions.csv");
-          link.style.visibility = "hidden";
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        };
-
-        const { totalProfit, netCrypto, totalBinanceFee, totalBankFee } =
-          useMemo(() => {
-            let totalFiatPaid = 0;
-            let totalFiatReceived = 0;
-            let totalCryptoBought = 0;
-            let totalCryptoSold = 0;
-            let totalBinanceFee = 0;
-            let totalBankFee = 0;
-
-            transactions.forEach((tx) => {
-              if (tx.type === "buy") {
-                totalFiatPaid += tx.fiatAmount + tx.binanceFee + tx.bankFee;
-                totalCryptoBought += tx.cryptoAmount;
-              } else {
-                totalFiatReceived += tx.fiatAmount - tx.binanceFee - tx.bankFee;
-                totalCryptoSold += tx.cryptoAmount;
-              }
-              totalBinanceFee += tx.binanceFee;
-              totalBankFee += tx.bankFee;
+            unsubscribeSnapshot = window.onSnapshot(q, (querySnapshot) => {
+              console.log("Fetching new transactions...");
+              const fetchedTransactions = [];
+              querySnapshot.forEach((doc) => {
+                fetchedTransactions.push({ id: doc.id, ...doc.data() });
+              });
+              setTransactions(fetchedTransactions);
+            }, (error) => {
+              console.error("Error fetching data:", error);
+              setMessage("Failed to load transactions.");
             });
 
-            const netCrypto = totalCryptoBought - totalCryptoSold;
-            const totalProfit = totalFiatReceived - totalFiatPaid;
+          } else {
+            console.log("User signed out.");
+            setUser(null);
+            setIsLoading(false);
+            // Call the unsubscribe function when the user signs out
+            unsubscribeSnapshot();
+            setTransactions([]);
+          }
+        });
 
-            return { totalProfit, netCrypto, totalBinanceFee, totalBankFee };
-          }, [transactions]);
+        // Cleanup function for the auth listener
+        return () => {
+          console.log("Cleaning up auth listener.");
+          unsubscribeAuth();
+          unsubscribeSnapshot();
+        };
+      }, []);
 
-        if (isLoading) {
-          return (
-            <div className="flex items-center justify-center min-h-screen">
-              Loading...
-            </div>
-          );
+      const signInWithGoogle = async () => {
+        const auth = window.getAuth();
+        const provider = new window.GoogleAuthProvider();
+        try {
+          await window.signInWithPopup(auth, provider);
+        } catch (error) {
+          console.error("Error signing in with Google:", error);
+          setMessage("Failed to sign in. Check the console.");
+        }
+      };
+
+      const handleSignOut = async () => {
+        const auth = window.getAuth();
+        try {
+          await window.signOut(auth);
+          setTransactions([]);
+        } catch (error) {
+          console.error("Error signing out:", error);
+          setMessage("Failed to sign out. Check the console.");
+        }
+      };
+
+      const addTransaction = async (e) => {
+        e.preventDefault();
+
+        if (!cryptoAmount || !fiatAmount || !date) {
+          setMessage('Please fill in all fields.');
+          return;
         }
 
-        if (!user) {
-          return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4 font-sans antialiased">
-              <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 w-full max-w-sm text-center">
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-800 tracking-tight mb-4">
-                  P2P Transaction Tracker
-                </h1>
-                <p className="text-gray-600 mb-6">
-                  Sign in to save and access your transactions from any device.
-                </p>
-                <button
-                  onClick={signInWithGoogle}
-                  className="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:bg-blue-700 transform hover:scale-105 transition duration-300 ease-in-out flex items-center justify-center space-x-2"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 48 48"
-                  >
-                    <path
-                      fill="#FFC107"
-                      d="M43.6 20.4a20.0 20.0 0 0 1-3.6 12.3c-.6 1.3-1.4 2.5-2.4 3.6-2.4 2.4-5.2 3.6-8.2 3.7-3.6 0-7.2-1.3-10-3.6-2.8-2.3-4.5-5.6-4.5-9.3s1.7-7 4.5-9.3c2.8-2.3 6.4-3.6 10-3.6 3.8 0 7.4 1.4 10.3 4.1.3.2.7.5 1 .8.4.4.8.9 1.1 1.4.3.5.5 1 .7 1.6.2.6.3 1.2.3 1.8h-11.6v-2.4h11.6c-.2-1-.4-2-.7-3s-.6-2-.9-2.9c-.3-.9-.7-1.7-1.1-2.5-1.4-2.8-3.4-5.1-5.9-6.9-2.6-1.8-5.6-2.7-8.9-2.7-4.4 0-8.5 1.7-11.6 4.8-3.1 3.1-4.8 7.2-4.8 11.6s1.7 8.5 4.8 11.6c3.1 3.1 7.2 4.8 11.6 4.8 4.6 0 8.8-1.8 12-5.1 3.2-3.3 5-7.7 5.1-12.4h-1.2z"
-                    ></path>
-                    <path
-                      fill="#4285F4"
-                      d="M10.4 33.7c-2.4-2.4-3.6-5.2-3.6-8.2s1.2-5.8 3.6-8.2c2.4-2.4 5.2-3.6 8.2-3.6s5.8 1.2 8.2 3.6l3.6-3.6c-2.8-2.8-6.4-4.5-10.3-4.5s-7.5 1.7-10.3 4.5c-2.8 2.8-4.5 6.4-4.5 10.3s1.7 7.5 4.5 10.3c2.8 2.8 6.4 4.5 10.3 4.5s7.5-1.7 10.3-4.5l-3.6-3.6c-2.4 2.4-5.2 3.6-8.2 3.6s-5.8-1.2-8.2-3.6z"
-                    ></path>
-                    <path
-                      fill="#34A853"
-                      d="M24 44.8c-3.6 0-7.2-1.3-10-3.6-2.8-2.3-4.5-5.6-4.5-9.3s1.7-7 4.5-9.3c2.8-2.3 6.4-3.6 10-3.6 3.6 0 7.2 1.3 10 3.6l3.6-3.6c-2.8-2.8-6.4-4.5-10.3-4.5s-7.5 1.7-10.3 4.5c-2.8 2.8-4.5 6.4-4.5 10.3s1.7 7.5 4.5 10.3c2.8 2.8 6.4 4.5 10.3 4.5s7.5-1.7 10.3-4.5l-3.6-3.6c-2.4 2.4-5.2 3.6-8.2 3.6z"
-                    ></path>
-                    <path
-                      fill="#FBBC04"
-                      d="M43.6 20.4a20.0 20.0 0 0 1-3.6 12.3c-.6 1.3-1.4 2.5-2.4 3.6-2.4 2.4-5.2 3.6-8.2 3.7-3.6 0-7.2-1.3-10-3.6-2.8-2.3-4.5-5.6-4.5-9.3s1.7-7 4.5-9.3c2.8-2.3 6.4-3.6 10-3.6 3.8 0 7.4 1.4 10.3 4.1.3.2.7.5 1 .8.4.4.8.9 1.1 1.4.3.5.5 1 .7 1.6.2.6.3 1.2.3 1.8h-11.6v-2.4h11.6c-.2-1-.4-2-.7-3s-.6-2-.9-2.9c-.3-.9-.7-1.7-1.1-2.5-1.4-2.8-3.4-5.1-5.9-6.9-2.6-1.8-5.6-2.7-8.9-2.7-4.4 0-8.5 1.7-11.6 4.8-3.1 3.1-4.8 7.2-4.8 11.6s1.7 8.5 4.8 11.6c3.1 3.1 7.2 4.8 11.6 4.8 4.6 0 8.8-1.8 12-5.1 3.2-3.3 5-7.7 5.1-12.4h-1.2z"
-                    ></path>
-                    <path
-                      fill="#EA4335"
-                      d="M43.6 20.4a20.0 20.0 0 0 1-3.6 12.3c-.6 1.3-1.4 2.5-2.4 3.6-2.4 2.4-5.2 3.6-8.2 3.7-3.6 0-7.2-1.3-10-3.6-2.8-2.3-4.5-5.6-4.5-9.3s1.7-7 4.5-9.3c2.8-2.3 6.4-3.6 10-3.6 3.8 0 7.4 1.4 10.3 4.1.3.2.7.5 1 .8.4.4.8.9 1.1 1.4.3.5.5 1 .7 1.6.2.6.3 1.2.3 1.8h-11.6v-2.4h11.6c-.2-1-.4-2-.7-3s-.6-2-.9-2.9c-.3-.9-.7-1.7-1.1-2.5-1.4-2.8-3.4-5.1-5.9-6.9-2.6-1.8-5.6-2.7-8.9-2.7-4.4 0-8.5 1.7-11.6 4.8-3.1 3.1-4.8 7.2-4.8 11.6s1.7 8.5 4.8 11.6c3.1 3.1 7.2 4.8 11.6 4.8 4.6 0 8.8-1.8 12-5.1 3.2-3.3 5-7.7 5.1-12.4h-1.2z"
-                    ></path>
-                  </svg>
-                  <span>Sign in with Google</span>
-                </button>
-              </div>
-            </div>
-          );
+        setMessage('');
+
+        const fiatValue = parseFloat(fiatAmount);
+        const cryptoValue = parseFloat(cryptoAmount);
+        const binanceFee = 0.05 * usdtEgpRate; // assuming a fixed 0.05% fee
+        const bankFee = Math.max(0.5, fiatValue * 0.001);
+
+        const newTransaction = {
+          date: new Date(date).toLocaleDateString(),
+          type: type,
+          cryptoAmount: cryptoValue,
+          fiatAmount: fiatValue,
+          binanceFee: binanceFee,
+          bankFee: bankFee,
+          createdAt: new Date() // Add a timestamp
+        };
+
+        try {
+          const transactionsCollectionRef = window.collection(db, `artifacts/${appId}/users/${user.uid}/transactions`);
+          await window.addDoc(transactionsCollectionRef, newTransaction);
+        } catch (error) {
+          console.error("Error adding document:", error);
+          setMessage("Failed to add transaction. Check the console.");
         }
 
+        setCryptoAmount('');
+        setFiatAmount('');
+        setDate('');
+      };
+
+      const deleteTransaction = async (id) => {
+        try {
+          await window.deleteDoc(window.doc(db, `artifacts/${appId}/users/${user.uid}/transactions/${id}`));
+        } catch (error) {
+          console.error("Error deleting document:", error);
+          setMessage("Failed to delete transaction. Check the console.");
+        }
+      };
+
+      const downloadCsv = () => {
+        if (transactions.length === 0) {
+          setMessage('No transactions to download.');
+          return;
+        }
+        
+        const headers = ["Date", "Type", "Crypto Amount (USDT)", "Fiat Amount (EGP)", "Binance Fee (EGP)", "Bank Fee (EGP)", "Total Fees (EGP)"];
+        
+        const csvRows = transactions.map(tx => {
+          const totalFees = (tx.binanceFee + tx.bankFee).toFixed(2);
+          return [
+            tx.date,
+            tx.type.charAt(0).toUpperCase() + tx.type.slice(1),
+            tx.cryptoAmount.toFixed(3),
+            tx.fiatAmount.toFixed(2),
+            tx.binanceFee.toFixed(2),
+            tx.bankFee.toFixed(2),
+            totalFees
+          ].join(',');
+        });
+        
+        const csvContent = [headers.join(','), ...csvRows].join('\n');
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "p2p_transactions.csv");
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      };
+
+      const { totalProfit, netCrypto, totalBinanceFee, totalBankFee } = useMemo(() => {
+        let totalFiatPaid = 0;
+        let totalFiatReceived = 0;
+        let totalCryptoBought = 0;
+        let totalCryptoSold = 0;
+        let totalBinanceFee = 0;
+        let totalBankFee = 0;
+        
+        transactions.forEach(tx => {
+          if (tx.type === 'buy') {
+            totalFiatPaid += tx.fiatAmount + tx.binanceFee + tx.bankFee;
+            totalCryptoBought += tx.cryptoAmount;
+          } else {
+            totalFiatReceived += tx.fiatAmount - tx.binanceFee - tx.bankFee;
+            totalCryptoSold += tx.cryptoAmount;
+          }
+          totalBinanceFee += tx.binanceFee;
+          totalBankFee += tx.bankFee;
+        });
+
+        const netCrypto = totalCryptoBought - totalCryptoSold;
+        const totalProfit = totalFiatReceived - totalFiatPaid;
+
+        return { totalProfit, netCrypto, totalBinanceFee, totalBankFee };
+      }, [transactions]);
+      
+      if (isLoading) {
+        return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+      }
+      
+      if (!user) {
         return (
-          <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 font-sans antialiased">
-            <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 w-full max-w-4xl space-y-8">
-              <div className="flex justify-between items-center">
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-800 tracking-tight">
-                  P2P Transaction Tracker
-                </h1>
-                <button
-                  onClick={handleSignOut}
-                  className="text-sm font-medium text-red-500 hover:text-red-700 transition-colors duration-200"
-                >
-                  Sign Out
-                </button>
-              </div>
-
-              {user && (
-                <p className="text-center text-sm text-gray-500 break-words">
-                  Signed in as:{" "}
-                  <span className="font-medium text-gray-700">
-                    {user.email || user.uid}
-                  </span>
-                </p>
-              )}
-
-              {/* Exchange Rate Section */}
-              <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-                <label htmlFor="usdtRate" className="text-gray-600 font-medium">
-                  USDT to EGP Exchange Rate
-                </label>
-                <input
-                  type="number"
-                  id="usdtRate"
-                  value={usdtEgpRate.toFixed(2)}
-                  onChange={(e) => setUsdtEgpRate(parseFloat(e.target.value))}
-                  className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-                  step="0.01"
-                />
-              </div>
-
-              {/* Transaction Form */}
-              <form onSubmit={addTransaction} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Transaction Type */}
-                  <div>
-                    <label className="block text-gray-700 font-semibold mb-2">
-                      Transaction Type
-                    </label>
-                    <div className="flex rounded-lg overflow-hidden border border-gray-300">
-                      <button
-                        type="button"
-                        onClick={() => setType("buy")}
-                        className={`w-1/2 py-2 text-center font-medium transition duration-200 ${
-                          type === "buy"
-                            ? "bg-green-500 text-white shadow-md"
-                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                        }`}
-                      >
-                        Buy
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setType("sell")}
-                        className={`w-1/2 py-2 text-center font-medium transition duration-200 ${
-                          type === "sell"
-                            ? "bg-red-500 text-white shadow-md"
-                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                        }`}
-                      >
-                        Sell
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Crypto Amount */}
-                  <div>
-                    <label
-                      htmlFor="cryptoAmount"
-                      className="block text-gray-700 font-semibold mb-2"
-                    >
-                      Crypto Amount (USDT)
-                    </label>
-                    <input
-                      type="number"
-                      id="cryptoAmount"
-                      value={cryptoAmount}
-                      onChange={(e) => setCryptoAmount(e.target.value)}
-                      placeholder="e.g., 100"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-                      step="0.001"
-                    />
-                  </div>
-
-                  {/* Fiat Amount */}
-                  <div>
-                    <label
-                      htmlFor="fiatAmount"
-                      className="block text-gray-700 font-semibold mb-2"
-                    >
-                      Fiat Amount (EGP)
-                    </label>
-                    <input
-                      type="number"
-                      id="fiatAmount"
-                      value={fiatAmount}
-                      onChange={(e) => setFiatAmount(e.target.value)}
-                      placeholder="e.g., 5000"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-                      step="0.01"
-                    />
-                  </div>
-
-                  {/* Date Input */}
-                  <div>
-                    <label
-                      htmlFor="date"
-                      className="block text-gray-700 font-semibold mb-2"
-                    >
-                      Transaction Date
-                    </label>
-                    <input
-                      type="date"
-                      id="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-                    />
-                  </div>
-                </div>
-
-                {/* Validation Message */}
-                {message && (
-                  <div className="text-sm font-medium text-red-500 text-center">
-                    {message}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  className="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:bg-blue-700 transform hover:scale-105 transition duration-300 ease-in-out"
-                >
-                  Add Transaction
-                </button>
-              </form>
-
-              {/* Summary and Table */}
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
-                  {/* Total Profit/Loss */}
-                  <div
-                    className={`p-4 rounded-xl shadow-inner ${
-                      totalProfit >= 0
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    <h3 className="font-semibold text-sm sm:text-base">
-                      Total Profit/Loss
-                    </h3>
-                    <p className="font-bold text-xl sm:text-2xl mt-1">
-                      {totalProfit.toFixed(2)} EGP
-                    </p>
-                  </div>
-
-                  {/* Net Crypto Held */}
-                  <div className="p-4 rounded-xl shadow-inner bg-gray-100 text-gray-700">
-                    <h3 className="font-semibold text-sm sm:text-base">
-                      Net Crypto Held
-                    </h3>
-                    <p className="font-bold text-xl sm:text-2xl mt-1">
-                      {netCrypto.toFixed(3)} USDT
-                    </p>
-                  </div>
-
-                  {/* Total Binance Fees */}
-                  <div className="p-4 rounded-xl shadow-inner bg-gray-100 text-gray-700">
-                    <h3 className="font-semibold text-sm sm:text-base">
-                      Total Binance Fees
-                    </h3>
-                    <p className="font-bold text-xl sm:text-2xl mt-1">
-                      {totalBinanceFee.toFixed(2)} EGP
-                    </p>
-                  </div>
-
-                  {/* Total Bank Fees */}
-                  <div className="p-4 rounded-xl shadow-inner bg-gray-100 text-gray-700">
-                    <h3 className="font-semibold text-sm sm:text-base">
-                      Total Bank Fees
-                    </h3>
-                    <p className="font-bold text-xl sm:text-2xl mt-1">
-                      {totalBankFee.toFixed(2)} EGP
-                    </p>
-                  </div>
-                </div>
-
-                {/* Transactions Table */}
-                <div className="overflow-x-auto rounded-lg shadow-md">
-                  <table className="min-w-full bg-white">
-                    <thead className="bg-gray-200">
-                      <tr>
-                        <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase">
-                          Date
-                        </th>
-                        <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase">
-                          Type
-                        </th>
-                        <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase">
-                          Crypto (USDT)
-                        </th>
-                        <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase">
-                          Fiat (EGP)
-                        </th>
-                        <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase">
-                          Total Fees (EGP)
-                        </th>
-                        <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {transactions.length > 0 ? (
-                        transactions.map((tx) => (
-                          <tr
-                            key={tx.id}
-                            className="border-t border-gray-200 hover:bg-gray-50 transition-colors duration-150"
-                          >
-                            <td className="py-3 px-4 text-sm text-gray-800">
-                              {tx.date}
-                            </td>
-                            <td
-                              className={`py-3 px-4 text-sm font-medium ${
-                                tx.type === "buy"
-                                  ? "text-green-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {tx.type.charAt(0).toUpperCase() +
-                                tx.type.slice(1)}
-                            </td>
-                            <td className="py-3 px-4 text-sm text-gray-800">
-                              {tx.cryptoAmount.toFixed(3)}
-                            </td>
-                            <td className="py-3 px-4 text-sm text-gray-800">
-                              {tx.fiatAmount.toFixed(2)}
-                            </td>
-                            <td className="py-3 px-4 text-sm text-gray-800">
-                              {(tx.binanceFee + tx.bankFee).toFixed(2)}
-                            </td>
-                            <td className="py-3 px-4 text-sm text-gray-800">
-                              <button
-                                onClick={() => deleteTransaction(tx.id)}
-                                className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold hover:bg-red-600 transition-colors duration-200"
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td
-                            colSpan="6"
-                            className="py-6 text-center text-gray-500 italic"
-                          >
-                            No transactions added yet.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="text-center">
-                  <button
-                    onClick={downloadCsv}
-                    className="bg-purple-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:bg-purple-700 transform hover:scale-105 transition duration-300 ease-in-out"
-                  >
-                    Download as CSV
-                  </button>
-                </div>
-              </div>
+          <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4 font-sans antialiased">
+            <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 w-full max-w-sm text-center">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-800 tracking-tight mb-4">
+                P2P Transaction Tracker
+              </h1>
+              <p className="text-gray-600 mb-6">
+                Sign in to save and access your transactions from any device.
+              </p>
+              <button
+                onClick={signInWithGoogle}
+                className="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:bg-blue-700 transform hover:scale-105 transition duration-300 ease-in-out flex items-center justify-center space-x-2"
+              >
+                <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                  <path fill="#FFC107" d="M43.6 20.4a20.0 20.0 0 0 1-3.6 12.3c-.6 1.3-1.4 2.5-2.4 3.6-2.4 2.4-5.2 3.6-8.2 3.7-3.6 0-7.2-1.3-10-3.6-2.8-2.3-4.5-5.6-4.5-9.3s1.7-7 4.5-9.3c2.8-2.3 6.4-3.6 10-3.6 3.8 0 7.4 1.4 10.3 4.1.3.2.7.5 1 .8.4.4.8.9 1.1 1.4.3.5.5 1 .7 1.6.2.6.3 1.2.3 1.8h-11.6v-2.4h11.6c-.2-1-.4-2-.7-3s-.6-2-.9-2.9c-.3-.9-.7-1.7-1.1-2.5-1.4-2.8-3.4-5.1-5.9-6.9-2.6-1.8-5.6-2.7-8.9-2.7-4.4 0-8.5 1.7-11.6 4.8-3.1 3.1-4.8 7.2-4.8 11.6s1.7 8.5 4.8 11.6c3.1 3.1 7.2 4.8 11.6 4.8 4.6 0 8.8-1.8 12-5.1 3.2-3.3 5-7.7 5.1-12.4h-1.2z"></path>
+                  <path fill="#4285F4" d="M10.4 33.7c-2.4-2.4-3.6-5.2-3.6-8.2s1.2-5.8 3.6-8.2c2.4-2.4 5.2-3.6 8.2-3.6s5.8 1.2 8.2 3.6l3.6-3.6c-2.8-2.8-6.4-4.5-10.3-4.5s-7.5 1.7-10.3 4.5c-2.8 2.8-4.5 6.4-4.5 10.3s1.7 7.5 4.5 10.3c2.8 2.8 6.4 4.5 10.3 4.5s7.5-1.7 10.3-4.5l-3.6-3.6c-2.4 2.4-5.2 3.6-8.2 3.6s-5.8-1.2-8.2-3.6z"></path>
+                  <path fill="#34A853" d="M24 44.8c-3.6 0-7.2-1.3-10-3.6-2.8-2.3-4.5-5.6-4.5-9.3s1.7-7 4.5-9.3c2.8-2.3 6.4-3.6 10-3.6 3.6 0 7.2 1.3 10 3.6l3.6-3.6c-2.8-2.8-6.4-4.5-10.3-4.5s-7.5 1.7-10.3 4.5c-2.8 2.8-4.5 6.4-4.5 10.3s1.7 7.5 4.5 10.3c2.8 2.8 6.4 4.5 10.3 4.5s7.5-1.7 10.3-4.5l-3.6-3.6c-2.4 2.4-5.2 3.6-8.2 3.6z"></path>
+                  <path fill="#FBBC04" d="M43.6 20.4a20.0 20.0 0 0 1-3.6 12.3c-.6 1.3-1.4 2.5-2.4 3.6-2.4 2.4-5.2 3.6-8.2 3.7-3.6 0-7.2-1.3-10-3.6-2.8-2.3-4.5-5.6-4.5-9.3s1.7-7 4.5-9.3c2.8-2.3 6.4-3.6 10-3.6 3.8 0 7.4 1.4 10.3 4.1.3.2.7.5 1 .8.4.4.8.9 1.1 1.4.3.5.5 1 .7 1.6.2.6.3 1.2.3 1.8h-11.6v-2.4h11.6c-.2-1-.4-2-.7-3s-.6-2-.9-2.9c-.3-.9-.7-1.7-1.1-2.5-1.4-2.8-3.4-5.1-5.9-6.9-2.6-1.8-5.6-2.7-8.9-2.7-4.4 0-8.5 1.7-11.6 4.8-3.1 3.1-4.8 7.2-4.8 11.6s1.7 8.5 4.8 11.6c3.1 3.1 7.2 4.8 11.6 4.8 4.6 0 8.8-1.8 12-5.1 3.2-3.3 5-7.7 5.1-12.4h-1.2z"></path>
+                  <path fill="#EA4335" d="M43.6 20.4a20.0 20.0 0 0 1-3.6 12.3c-.6 1.3-1.4 2.5-2.4 3.6-2.4 2.4-5.2 3.6-8.2 3.7-3.6 0-7.2-1.3-10-3.6-2.8-2.3-4.5-5.6-4.5-9.3s1.7-7 4.5-9.3c2.8-2.3 6.4-3.6 10-3.6 3.8 0 7.4 1.4 10.3 4.1.3.2.7.5 1 .8.4.4.8.9 1.1 1.4.3.5.5 1 .7 1.6.2.6.3 1.2.3 1.8h-11.6v-2.4h11.6c-.2-1-.4-2-.7-3s-.6-2-.9-2.9c-.3-.9-.7-1.7-1.1-2.5-1.4-2.8-3.4-5.1-5.9-6.9-2.6-1.8-5.6-2.7-8.9-2.7-4.4 0-8.5 1.7-11.6 4.8-3.1 3.1-4.8 7.2-4.8 11.6s1.7 8.5 4.8 11.6c3.1 3.1 7.2 4.8 11.6 4.8 4.6 0 8.8-1.8 12-5.1 3.2-3.3 5-7.7 5.1-12.4h-1.2z"></path>
+                </svg>
+                <span>Sign in with Google</span>
+              </button>
             </div>
           </div>
         );
-      };
+      }
 
-      // Render the React component into the 'root' div
-      const root = ReactDOM.createRoot(document.getElementById("root"));
-      root.render(<App />);
-    </script>
-  </body>
-</html>
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 font-sans antialiased">
+          <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 w-full max-w-4xl space-y-8">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-800 tracking-tight">
+                P2P Transaction Tracker
+              </h1>
+              <button
+                onClick={handleSignOut}
+                className="text-sm font-medium text-red-500 hover:text-red-700 transition-colors duration-200"
+              >
+                Sign Out
+              </butt
