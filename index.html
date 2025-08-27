@@ -54,6 +54,7 @@
       const [message, setMessage] = useState('');
       const [db, setDb] = useState(null);
       const [authReady, setAuthReady] = useState(false);
+      const [isSubmitting, setIsSubmitting] = useState(false); // New state to track submission
 
       // Initialize Firebase and set up the Firestore listener
       useEffect(() => {
@@ -144,17 +145,22 @@
           setMessage('Authentication not ready. Please wait.');
           return;
         }
+        
+        if (isSubmitting) return; // Prevent multiple submissions
 
         if (!cryptoAmount || !fiatAmount || !date) {
           setMessage('Please fill in all fields.');
           return;
         }
-
+        
+        setIsSubmitting(true);
         setMessage('');
 
         const fiatValue = parseFloat(fiatAmount);
         const cryptoValue = parseFloat(cryptoAmount);
-        const binanceFee = 0.05 * usdtEgpRate; // assuming a fixed 0.05% fee
+        
+        // Binance fee is a fixed 0.05 USDT, converted to EGP
+        const binanceFee = 0.05 * usdtEgpRate; 
         const bankFee = Math.max(0.5, fiatValue * 0.001);
 
         const newTransaction = {
@@ -164,15 +170,18 @@
           fiatAmount: fiatValue,
           binanceFee: binanceFee,
           bankFee: bankFee,
-          createdAt: new Date() // Add a timestamp
+          createdAt: new Date()
         };
 
         try {
           const transactionsCollectionRef = window.collection(db, `artifacts/${appId}/public/data/transactions`);
           await window.addDoc(transactionsCollectionRef, newTransaction);
+          setMessage("Transaction added successfully!");
         } catch (error) {
           console.error("Error adding document:", error);
-          setMessage("Failed to add transaction. Check the console.");
+          setMessage(`Failed to add transaction. Error: ${error.message}`);
+        } finally {
+          setIsSubmitting(false);
         }
 
         setCryptoAmount('');
@@ -364,9 +373,12 @@
 
               <button
                 type="submit"
-                className="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:bg-blue-700 transform hover:scale-105 transition duration-300 ease-in-out"
+                disabled={isSubmitting}
+                className={`w-full font-bold py-3 px-6 rounded-xl shadow-lg transform transition duration-300 ease-in-out ${
+                  isSubmitting ? 'bg-gray-400 text-gray-600' : 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105'
+                }`}
               >
-                Add Transaction
+                {isSubmitting ? 'Adding...' : 'Add Transaction'}
               </button>
             </form>
 
